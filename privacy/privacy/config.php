@@ -5,7 +5,7 @@
 $host = 'localhost';
 $db   = 'm35_warroom';
 $user = 'm35_warroom_user';
-$pass = 'TrUlY~!g5v2l3kna';
+$pass = 'xxxxxxxxx';
 
 // 2. LA TUA CHIAVE GEMINI (AI)
 $gemini_api_key = 'xxxxxxxxxxxxxxx';
