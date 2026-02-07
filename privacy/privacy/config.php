@@ -8,7 +8,7 @@ $user = 'm35_warroom_user';
 $pass = 'TrUlY~!g5v2l3kna';
 
 // 2. LA TUA CHIAVE GEMINI (AI)
-$gemini_api_key = 'AIzaSyA536r2ASVI0JM6swFWcc_SssJ2R86ZP9Y';
+$gemini_api_key = 'xxxxxxxxxxxxxxx';
 
 // Connessione DB
 $conn = new mysqli($host, $user, $pass, $db);
