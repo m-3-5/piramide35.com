@@ -1,0 +1,45 @@
+<?php
+// admin_panel.php - Generatore di Ticket M 3.5
+include 'config.php';
+
+// CREAZIONE NUOVO TICKET
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $cliente = $_POST['cliente'];
+    $oggetto = $_POST['oggetto'];
+    $token = bin2hex(random_bytes(16)); // Genera codice univoco sicuro
+
+    $stmt = $conn->prepare("INSERT INTO m35_tickets (token, cliente, oggetto) VALUES (?, ?, ?)");
+    $stmt->bind_param("sss", $token, $cliente, $oggetto);
+    $stmt->execute();
+    
+    $link = "https://piramide35.com/privacy/ticket.php?t=" . $token;
+    $msg = "Ticket creato! Link: " . $link;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>M 3.5 Admin Panel</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; background: #f4f6f8; }
+        .card { background: white; padding: 30px; border-radius: 8px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        input, button { width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box; }
+        button { background: #00D185; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .result { background: #e8f5e9; color: #2e7d32; padding: 15px; word-break: break-all; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Nuovo Ticket Assistenza</h2>
+        <?php if(isset($msg)) echo "<div class='result'>$msg</div>"; ?>
+        
+        <form method="POST">
+            <input type="text" name="cliente" placeholder="Nome Cliente (es. Rosalia)" required>
+            <input type="text" name="oggetto" placeholder="Oggetto (es. Amazon #171...)" required>
+            <button type="submit">Genera Link Segreto</button>
+        </form>
+    </div>
+</body>
+</html>

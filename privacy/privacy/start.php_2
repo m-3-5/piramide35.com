@@ -1,0 +1,130 @@
+<?php
+// start.php - Landing Page con Risposta IA Immediata
+include 'config.php';
+
+// Carica notifiche per avvisarti subito del nuovo cliente
+require_once 'notifications.php'; 
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $nome = $_POST['nome'];
+    $problema = $_POST['problema'];
+    
+    // 1. CREA IL TICKET
+    $token = bin2hex(random_bytes(16));
+    $oggetto_auto = "Richiesta Web: " . substr($problema, 0, 30) . "..."; 
+    
+    $stmt = $conn->prepare("INSERT INTO m35_tickets (token, cliente, oggetto) VALUES (?, ?, ?)");
+    $stmt->bind_param("sss", $token, $nome, $oggetto_auto);
+    $stmt->execute();
+    $ticket_id = $stmt->insert_id;
+
+    // 2. SALVA IL MESSAGGIO DEL CLIENTE
+    $stmt = $conn->prepare("INSERT INTO m35_chat (ticket_id, sender, messaggio) VALUES (?, 'CLIENTE', ?)");
+    $stmt->bind_param("is", $ticket_id, $problema);
+    $stmt->execute();
+
+    // 3. AVVISA L'ADMIN (TE)
+    $link_admin = "https://piramide35.com/privacy/ticket.php?t=" . $token . "&admin=1";
+    inviaNotificaAdmin('ALL', $nome, $problema, $link_admin);
+
+    // --- 4. ATTIVAZIONE IA (IL PEZZO MANCANTE) --- dismesso da cancella !!
+    // Prepariamo Gemini per rispondere subito al primo messaggio
+   /* $system_prompt = "
+    Sei l'Assistente Virtuale di M 3.5. Un nuovo cliente ($nome) ha appena aperto un ticket scrivendo:
+    '$problema'.
+    
+    TUA MISSIONE:
+    Rispondi presentandoti brevemente, conferma di aver preso in carico la richiesta e di' che un operatore umano (Massimo) risponderà a breve. Sii accogliente.
+    ";*/
+	
+	// --- 4. ATTIVAZIONE IA ---
+    $system_prompt = "
+    Sei l'Assistente M 3.5. Un nuovo cliente ($nome) ha scritto: '$problema'.
+    
+    TUA MISSIONE:
+    Rispondi in modo accogliente ma professionale.
+    1. Conferma di aver aperto il ticket.
+    2. Non essere troppo lungo.
+    3. Di' che Massimo o un tecnico analizzerà la richiesta a breve.
+    4. Chiedi se ha dettagli o file da aggiungere subito.
+    ";
+
+    $data = ["contents" => [["parts" => [["text" => $system_prompt]]]]];
+    $options = [ 
+        'http' => [ 
+            'header'  => "Content-type: application/json\r\n", 
+            'method'  => 'POST', 
+            'content' => json_encode($data) 
+        ] 
+    ];
+    $context  = stream_context_create($options);
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" . $gemini_api_key;
+    
+    // Eseguiamo la chiamata (con soppressione errori @ per non bloccare il redirect)
+    $result = @file_get_contents($url, false, $context);
+    
+    if ($result) {
+        $response = json_decode($result, true);
+        $ai_reply = $response['candidates'][0]['content']['parts'][0]['text'];
+
+        // Salva la risposta dell'IA
+        $stmt = $conn->prepare("INSERT INTO m35_chat (ticket_id, sender, messaggio) VALUES (?, 'AI', ?)");
+        $stmt->bind_param("is", $ticket_id, $ai_reply);
+        $stmt->execute();
+    }
+    // ----------------------------------------------
+
+    // 5. VAI ALLA CHAT
+    header("Location: ticket.php?t=" . $token);
+    exit;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M 3.5 Assistenza AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #081014; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .chat-card { background: white; color: #333; width: 100%; max-width: 400px; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,209,133,0.2); }
+        .header { background: #081014; padding: 20px; border-bottom: 4px solid #00D185; }
+        .header h1 { margin: 0; font-size: 20px; }
+        .header span { color: #00D185; font-size: 12px; font-weight: bold; }
+        
+        .body { padding: 30px; }
+        .ai-msg { background: #e0f2f1; color: #00695c; padding: 15px; border-radius: 10px; border-bottom-left-radius: 0; margin-bottom: 20px; position: relative; }
+        .ai-msg::before { content: "M 3.5 AI"; position: absolute; top: -20px; left: 0; font-size: 10px; color: white; opacity: 0.7; }
+
+        input, textarea { width: 100%; padding: 15px; margin-bottom: 15px; border: 2px solid #eee; border-radius: 10px; box-sizing: border-box; font-family: inherit; }
+        input:focus, textarea:focus { border-color: #00D185; outline: none; }
+        
+        button { background: #00D185; color: white; border: none; width: 100%; padding: 15px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #00b371; }
+    </style>
+</head>
+<body>
+
+    <div class="chat-card">
+        <div class="header">
+            <span>BENVENUTO IN</span>
+            <h1>M 3.5 SUPPORT</h1>
+        </div>
+        <div class="body">
+            <div class="ai-msg">
+                Ciao! Sono l'Intelligenza Artificiale di M 3.5. 🤖<br>
+                Descrivi il tuo problema o la tua richiesta, creerò subito un ticket prioritario per te.
+            </div>
+
+            <form method="POST">
+                <input type="text" name="nome" placeholder="Il tuo Nome (o Azienda)" required>
+                <textarea name="problema" placeholder="Come possiamo aiutarti?" rows="3" required></textarea>
+                <button type="submit">INIZIA ASSISTENZA ➤</button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>
